@@ -1,0 +1,44 @@
+# Build artifacts
+/build/
+/bin/
+/out/
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# IDE-specific folders
+.vscode/
+.idea/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.VC.db
+*.vcxproj*
+*.xcodeproj/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# macOS
+.DS_Store
+
+# Compiled GLAD/GLFW objects if any (optional)
+libs/glfw/build/
+libs/glfw/bin/
+
+# Other
+*.gch
+*.pch
