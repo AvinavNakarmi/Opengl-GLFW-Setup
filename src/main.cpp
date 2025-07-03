@@ -1,17 +1,45 @@
 #include <iostream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "shader.h"
 #include "VAO.h"
 #include "VBO.h"
 #include "EBO.h"
 #include "vector.h"
+#include "matrix.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 bool keys[1024] = {false};
+bool mouseDown = false;
+double mousePosXDragStart, mousePosYDragStart;
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height)
+unsigned int width = 800;
+unsigned int height = 800;
+
+struct MousePos
 {
+	double x, y;
+	MousePos operator-(const MousePos &b)
+	{
+		return {x - b.x, y - b.y};
+	}
+	MousePos operator+(const MousePos &b)
+	{
+		return {x + b.x, y + b.y};
+	}
+};
+
+MousePos DragStart = {0.0f, 0.0};
+
+void framebuffer_size_callback(GLFWwindow *window, int changedWidth, int changedHeight)
+{
+	width = changedWidth;
+	height = changedHeight;
 	glViewport(0, 0, width, height);
 }
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -23,6 +51,25 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 		else if (action == GLFW_RELEASE)
 			keys[key] = false;
 	}
+}
+void mouse_down_callback(GLFWwindow *window, int button, int action, int mods)
+{
+	if (action == 1)
+	{
+		mouseDown = true;
+		glfwGetCursorPos(window, &DragStart.x, &DragStart.y);
+	}
+	else
+	{
+		mouseDown = false;
+		MousePos currentPos;
+		glfwGetCursorPos(window, &currentPos.x, &currentPos.y);
+		MousePos difference = DragStart - currentPos;
+		std::cout << difference.x << difference.y << std::endl;
+	}
+}
+void mouse_cursor_callback(GLFWwindow *window, double xpos, double ypos)
+{
 }
 void update(Vector3 &position)
 {
@@ -64,7 +111,6 @@ int main()
 {
 	// Initialize GLFW
 	glfwInit();
-
 	// Tell GLFW what version of OpenGL we are using
 	// In this case we are using OpenGL 3.3
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -74,7 +120,7 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// Create a GLFWwindow object of 800 by 800 pixels, naming it "YoutubeOpenGL"
-	GLFWwindow *window = glfwCreateWindow(800, 800, "YoutubeOpenGL", NULL, NULL);
+	GLFWwindow *window = glfwCreateWindow(width, height, "YoutubeOpenGL", NULL, NULL);
 	// Error check if the window fails to create
 	if (window == NULL)
 	{
@@ -86,11 +132,13 @@ int main()
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwSetKeyCallback(window, key_callback);
+	glfwSetCursorPosCallback(window, mouse_cursor_callback);
+	glfwSetMouseButtonCallback(window, mouse_down_callback);
 	// Load GLAD so it configures OpenGL
 	gladLoadGL();
 	// Specify the viewport of OpenGL in the Window
 	// In this case the viewport goes from x = 0, y = 0, to x = 800, y = 800
-	glViewport(0, 0, 800, 800);
+	glViewport(0, 0, width, height);
 
 	// Generates Shader object using shaders defualt.vert and default.frag
 	Shader shaderProgram("../src/shader/default.vert", "../src/shader/default.frag");
@@ -113,23 +161,21 @@ int main()
 	VBO1.Unbind();
 	EBO1.Unbind();
 
-	GLuint uniID = glGetUniformLocation(shaderProgram.ID, "u_modal");
-	float model[16] = {
-		1, 0, 0, 0, // column 0
-		0, 1, 0, 0, // column 1
-		0, 0, 1, 0, // column 2
-		0, 0, 0, 1	// column 3
-	};
-
-	Vector3 translation = Vector3();
+	GLuint uniModalID = glGetUniformLocation(shaderProgram.ID, "u_modal");
+	GLuint uniViewID = glGetUniformLocation(shaderProgram.ID, "u_view");
+	GLuint uniProjectionID = glGetUniformLocation(shaderProgram.ID, "u_projection");
+	float theta = glm::radians(0.0f);
 
 	// Main while loop
 	while (!glfwWindowShouldClose(window))
 	{
-
-		update(translation);
-		model[12] = translation.x;
-		model[13] = translation.y;
+		glm::mat4 modal = glm::mat4(1.0f);
+		glm::mat4 view = glm::mat4(1.0f);
+		glm::mat4 projection = glm::mat4(1.0f);
+		theta += 0.01f;
+		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -2.0f));
+		projection = glm::perspective(glm::radians(theta), (float)(width / height), 0.1f, 100.0f);
+		modal = glm::rotate(modal, theta, glm::vec3(0.0f, 0.0f, 1.0f));
 
 		// Specify the color of the background
 		glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
@@ -137,7 +183,10 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 		// Tell OpenGL which Shader Program we want to use
 		shaderProgram.Activate();
-		glUniformMatrix4fv(uniID, 1, GL_FALSE, model);
+		glUniformMatrix4fv(uniModalID, 1, GL_FALSE, glm::value_ptr(modal));
+		glUniformMatrix4fv(uniViewID, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(uniProjectionID, 1, GL_FALSE, glm::value_ptr(projection));
+
 		// Bind the VAO so OpenGL knows to use it
 		VAO1.Bind();
 		// Draw primitives, number of indices, datatype of indices, index of indices
